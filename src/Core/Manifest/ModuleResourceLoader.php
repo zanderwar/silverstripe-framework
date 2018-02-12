@@ -3,6 +3,8 @@
 namespace SilverStripe\Core\Manifest;
 
 use InvalidArgumentException;
+use SilverStripe\Control\Controller;
+use SilverStripe\Control\Director;
 use SilverStripe\Core\Injector\Injectable;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\View\TemplateGlobalProvider;
@@ -19,6 +21,7 @@ class ModuleResourceLoader implements TemplateGlobalProvider
      * For other files, return original value
      *
      * @param string $resource
+     *
      * @return string
      */
     public function resolvePath($resource)
@@ -38,6 +41,7 @@ class ModuleResourceLoader implements TemplateGlobalProvider
      * Resolves resource specifier to the given url.
      *
      * @param string $resource
+     *
      * @return string
      */
     public function resolveURL($resource)
@@ -60,6 +64,7 @@ class ModuleResourceLoader implements TemplateGlobalProvider
      * Template wrapper for resolvePath
      *
      * @param string $resource
+     *
      * @return string
      */
     public static function resourcePath($resource)
@@ -71,6 +76,7 @@ class ModuleResourceLoader implements TemplateGlobalProvider
      * Template wrapper for resolveURL
      *
      * @param string $resource
+     *
      * @return string
      */
     public static function resourceURL($resource)
@@ -91,6 +97,7 @@ class ModuleResourceLoader implements TemplateGlobalProvider
      * Returns the original resource otherwise.
      *
      * @param string $resource
+     *
      * @return ModuleResource|string The resource, or input string if not a module resource
      */
     public function resolveResource($resource)
@@ -103,10 +110,45 @@ class ModuleResourceLoader implements TemplateGlobalProvider
         $resource = $matches['resource'];
         $moduleObj = ModuleLoader::getModule($module);
         if (!$moduleObj) {
-            throw new InvalidArgumentException("Can't find module '$module'");
+            $append = '';
+            if (!$this->hasModuleComposerConfig($module)) {
+                $append = ", the composer.json file appears to be missing.";
+            }
+            throw new InvalidArgumentException("Can't find module '$module'$append");
         }
         $resourceObj = $moduleObj->getResource($resource);
 
         return $resourceObj;
+    }
+
+    /**
+     * Checks to see if the provided module ("vendor/package") has a composer.json file.
+     *
+     * @param $module
+     *
+     * @throws \Exception
+     *
+     * @return bool
+     */
+    public function hasModuleComposerConfig($module)
+    {
+        list($vendor, $package) = explode('/', $module);
+
+        if (!$vendor || !$package) {
+            throw new \Exception("$module is not in the format of vendor/package");
+        }
+
+        $vendorPath = Controller::join_links(Director::baseFolder(), 'vendor', $vendor, $package, 'composer.json');
+        $rootPath = Controller::join_links(Director::baseFolder(), $package, 'composer.json');
+
+        if (!is_dir(dirname($vendorPath)) && !is_dir(dirname($rootPath))) {
+            return false;
+        }
+
+        if (!file_exists($vendorPath) && !file_exists($rootPath)) {
+            return false;
+        }
+
+        return true;
     }
 }
